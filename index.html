@@ -2,7 +2,7 @@
 <html>
 <head>
     <meta charset="utf-8"/>
-    <title>Asteroids WASM</title>
+    <title>Asteroids WASM - Debug</title>
     <style>
         body { margin: 0; padding: 0; background-color: black; color: white; font-family: Arial, sans-serif; }
         #gameCanvas { display: block; margin: 0 auto; }
@@ -20,37 +20,50 @@
         debugInfo.textContent += message + '\n';
     }
 
-    // Polyfill
-    if (!WebAssembly.instantiateStreaming) {
-        WebAssembly.instantiateStreaming = async (resp, importObject) => {
-            const source = await (await resp).arrayBuffer();
-            return await WebAssembly.instantiate(source, importObject);
-        };
+    async function loadWasm() {
+        if (!WebAssembly.instantiateStreaming) {
+            WebAssembly.instantiateStreaming = async (resp, importObject) => {
+                const source = await (await resp).arrayBuffer();
+                return await WebAssembly.instantiate(source, importObject);
+            };
+        }
+
+        try {
+            log("Attempting to fetch main.wasm...");
+            const response = await fetch("main.wasm");
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            log("main.wasm fetched successfully.");
+
+            const go = new Go();
+            log("Instantiating WebAssembly module...");
+            const result = await WebAssembly.instantiateStreaming(response, go.importObject);
+            log("WebAssembly module instantiated successfully.");
+
+            log("Running Go WASM...");
+            go.run(result.instance);
+            log("Go WASM started.");
+
+            if (typeof updateCanvas === "function") {
+                updateCanvas();
+                log("updateCanvas function called");
+            } else {
+                log("Error: updateCanvas function not found");
+            }
+        } catch (error) {
+            log(`Error: ${error.message}`);
+            log("Stack trace:");
+            log(error.stack);
+        }
     }
 
-    // Wait for the wasm_exec.js script to load
     window.addEventListener('load', function() {
         if (typeof Go === 'undefined') {
             log("Error: Go is not defined. Make sure wasm_exec.js is loaded correctly.");
             return;
         }
-
-        const go = new Go();
-        WebAssembly.instantiateStreaming(fetch("main.wasm"), go.importObject)
-            .then((result) => {
-                log("WebAssembly module loaded successfully");
-                go.run(result.instance);
-                log("Go WASM started");
-                if (typeof updateCanvas === "function") {
-                    updateCanvas();
-                    log("updateCanvas function called");
-                } else {
-                    log("Error: updateCanvas function not found");
-                }
-            })
-            .catch((error) => {
-                log("Error loading WebAssembly module: " + error);
-            });
+        loadWasm();
     });
 </script>
 </body>
