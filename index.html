@@ -28,22 +28,30 @@
         };
     }
 
-    const go = new Go();
-    WebAssembly.instantiateStreaming(fetch("main.wasm"), go.importObject)
-        .then((result) => {
-            log("WebAssembly module loaded successfully");
-            go.run(result.instance);
-            log("Go WASM started");
-            if (typeof updateCanvas === "function") {
-                updateCanvas();
-                log("updateCanvas function called");
-            } else {
-                log("Error: updateCanvas function not found");
-            }
-        })
-        .catch((error) => {
-            log("Error loading WebAssembly module: " + error);
-        });
+    // Wait for the wasm_exec.js script to load
+    window.addEventListener('load', function() {
+        if (typeof Go === 'undefined') {
+            log("Error: Go is not defined. Make sure wasm_exec.js is loaded correctly.");
+            return;
+        }
+
+        const go = new Go();
+        WebAssembly.instantiateStreaming(fetch("main.wasm"), go.importObject)
+            .then((result) => {
+                log("WebAssembly module loaded successfully");
+                go.run(result.instance);
+                log("Go WASM started");
+                if (typeof updateCanvas === "function") {
+                    updateCanvas();
+                    log("updateCanvas function called");
+                } else {
+                    log("Error: updateCanvas function not found");
+                }
+            })
+            .catch((error) => {
+                log("Error loading WebAssembly module: " + error);
+            });
+    });
 </script>
 </body>
 </html>
