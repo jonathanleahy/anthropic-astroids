@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8"/>
+    <title>Asteroids WASM</title>
+    <style>
+        body { margin: 0; padding: 0; background-color: black; color: white; font-family: Arial, sans-serif; }
+        #gameCanvas { display: block; margin: 0 auto; }
+        #debugInfo { margin: 20px; white-space: pre-wrap; }
+    </style>
+</head>
+<body>
+<canvas id="gameCanvas" width="640" height="480"></canvas>
+<div id="debugInfo"></div>
+<script src="wasm_exec.js"></script>
+<script>
+    const debugInfo = document.getElementById('debugInfo');
+    function log(message) {
+        console.log(message);
+        debugInfo.textContent += message + '\n';
+    }
+
+    // Polyfill
+    if (!WebAssembly.instantiateStreaming) {
+        WebAssembly.instantiateStreaming = async (resp, importObject) => {
+            const source = await (await resp).arrayBuffer();
+            return await WebAssembly.instantiate(source, importObject);
+        };
+    }
+
+    const go = new Go();
+    WebAssembly.instantiateStreaming(fetch("main.wasm"), go.importObject)
+        .then((result) => {
+            log("WebAssembly module loaded successfully");
+            go.run(result.instance);
+            log("Go WASM started");
+            if (typeof updateCanvas === "function") {
+                updateCanvas();
+                log("updateCanvas function called");
+            } else {
+                log("Error: updateCanvas function not found");
+            }
+        })
+        .catch((error) => {
+            log("Error loading WebAssembly module: " + error);
+        });
+</script>
+</body>
+</html>

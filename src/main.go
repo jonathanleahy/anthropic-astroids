@@ -2,7 +2,11 @@ package main
 
 import (
 	"fmt"
-	"github.com/hajimehoshi/ebiten/v2"
+	"math"
+	"math/rand"
+	"syscall/js"
+	"time"
+
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
 	"github.com/hajimehoshi/ebiten/v2/examples/resources/fonts"
 	"github.com/hajimehoshi/ebiten/v2/text"
@@ -11,10 +15,6 @@ import (
 	"golang.org/x/image/font/opentype"
 	"image"
 	"image/color"
-	"log"
-	"math"
-	"math/rand"
-	"time"
 )
 
 const (
@@ -360,7 +360,10 @@ func createAsteroid(x, y, size float64) Asteroid {
 		angle := float64(i) * (2 * math.Pi / numAsteroidVertices)
 		r := size/2 + rand.Float64()*size/4 - size/8
 		asteroid.points[i*2] = math.Cos(angle) * r
-		asteroid.points[i*2+1] = math.Sin(angle) * r
+		asteroid.points[i*2+1] = math.Sin(angle) *
+			r
+
+		r
 	}
 
 	return asteroid
@@ -406,8 +409,6 @@ func drawAsteroid(screen *ebiten.Image, a Asteroid) {
 
 	screen.DrawTriangles(vs, is, emptySubImage, op)
 
-	// Draw the center point and outline
-	//ebitenutil.DrawCircle(screen, a.x, a.y, 2, color.RGBA{255, 0, 0, 255})
 	for i := 0; i < numAsteroidVertices; i++ {
 		j := (i + 1) % numAsteroidVertices
 		x1 := a.x + a.points[i*2]*math.Cos(a.rotation) - a.points[i*2+1]*math.Sin(a.rotation)
@@ -429,27 +430,28 @@ func distance(x1, y1, x2, y2 float64) float64 {
 func main() {
 	rand.Seed(time.Now().UnixNano())
 
-	// Load font
-	fontData, err := opentype.Parse(fonts.MPlus1pRegular_ttf)
-	if err != nil {
-		log.Fatal(err)
-	}
-	font, err := opentype.NewFace(fontData, &opentype.FaceOptions{
-		Size:    24,
-		DPI:     72,
-		Hinting: font.HintingFull,
-	})
-	if err != nil {
-		log.Fatal(err)
-	}
+	// Create a channel to keep the main function running
+	c := make(chan struct{}, 0)
 
+	// Register the updateCanvas function in the JavaScript global scope
+	js.Global().Set("updateCanvas", js.FuncOf(updateCanvas))
+
+	fmt.Println("WASM Go Initialized")
+	<-c
+}
+
+func updateCanvas(this js.Value, args []js.Value) interface{} {
+	// Get the canvas element
+	canvas := js.Global().Get("document").Call("getElementById", "gameCanvas")
+
+	// Create a new Game instance
 	game := &Game{
 		asteroids: make([]Asteroid, 15),
 		stars:     make([]Star, numStars),
 		state:     StatePlaying,
-		font:      font,
 	}
 
+	// Initialize game objects
 	for i := range game.asteroids {
 		game.asteroids[i] = createAsteroid(float64(rand.Intn(screenWidth)), float64(rand.Intn(screenHeight)), asteroidSize)
 	}
@@ -463,9 +465,32 @@ func main() {
 		}
 	}
 
-	ebiten.SetWindowSize(screenWidth, screenHeight)
-	ebiten.SetWindowTitle("Asteroids")
-	if err := ebiten.RunGame(game); err != nil {
-		log.Fatal(err)
+	// Load font
+	fontData, err := opentype.Parse(fonts.MPlus1pRegular_ttf)
+	if err != nil {
+		fmt.Println("Error loading font:", err)
+		return nil
 	}
+	game.font, err = opentype.NewFace(fontData, &opentype.FaceOptions{
+		Size:    24,
+		DPI:     72,
+		Hinting: font.HintingFull,
+	})
+	if err != nil {
+		fmt.Println("Error creating font face:", err)
+		return nil
+	}
+
+	// Set up Ebiten for off-screen rendering
+	ebiten.SetWindowSize(screenWidth, screenHeight)
+
+	// Run the game loop
+	go func() {
+		if err := ebiten.RunGame(game); err != nil {
+			fmt.Println("Error running game:", err)
+		}
+	}()
+
+	// Return null to JavaScript
+	return nil
 }
